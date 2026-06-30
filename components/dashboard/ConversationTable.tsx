@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -12,7 +13,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -37,11 +37,58 @@ interface LogEntry {
 
 interface ConversationTableProps {
   logs: LogEntry[];
+  page: number;
+  totalPages: number;
+  showPagination?: boolean;
 }
 
-export function ConversationTable({ logs }: ConversationTableProps) {
+export function ConversationTable({
+  logs: initialLogs,
+  page,
+  totalPages,
+  showPagination = true,
+}: ConversationTableProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [logs, setLogs] = useState(initialLogs);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sending, setSending] = useState<Set<string>>(new Set());
+
+  const handleApproveAndSend = useCallback(
+    async (conversationId: string) => {
+      setSending((prev) => new Set(prev).add(conversationId));
+      try {
+        const res = await fetch("/api/reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationId }),
+        });
+        if (res.ok) {
+          setLogs((prev) =>
+            prev.map((l) =>
+              l.conversationId === conversationId
+                ? { ...l, status: "MANUALLY_SENT" as LogStatus }
+                : l
+            )
+          );
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(`Failed: ${err.error ?? "Unknown error"}`);
+        }
+      } catch (e) {
+        alert(`Error: ${(e as Error).message}`);
+      } finally {
+        setSending((prev) => {
+          const next = new Set(prev);
+          next.delete(conversationId);
+          return next;
+        });
+      }
+      router.refresh();
+    },
+    [router]
+  );
 
   const filtered = logs.filter((log) => {
     const matchesSearch =
@@ -53,6 +100,20 @@ export function ConversationTable({ logs }: ConversationTableProps) {
     return matchesSearch && matchesStatus;
   });
 
+  const canApprove = (status: LogStatus) =>
+    status === "MANUAL_REVIEW" || status === "ERROR";
+
+  const buildPageUrl = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (p <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(p));
+    }
+    const qs = params.toString();
+    return `/dashboard${qs ? `?${qs}` : ""}`;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex gap-4">
@@ -62,7 +123,10 @@ export function ConversationTable({ logs }: ConversationTableProps) {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => v && setStatusFilter(v)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Filter status" />
           </SelectTrigger>
@@ -86,13 +150,16 @@ export function ConversationTable({ logs }: ConversationTableProps) {
               <TableHead>Confidence</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Time</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead className="w-[180px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell
+                  colSpan={6}
+                  className="text-center text-muted-foreground py-8"
+                >
                   No entries found.
                 </TableCell>
               </TableRow>
@@ -113,11 +180,26 @@ export function ConversationTable({ logs }: ConversationTableProps) {
                     {formatRelativeTime(log.createdAt)}
                   </TableCell>
                   <TableCell>
-                    <Link href={`/dashboard/${log.conversationId}`}>
-                      <Button variant="outline" size="sm">
-                        View
-                      </Button>
-                    </Link>
+                    <div className="flex gap-1">
+                      {canApprove(log.status) && (
+                        <Button
+                          size="sm"
+                          disabled={sending.has(log.conversationId)}
+                          onClick={() =>
+                            handleApproveAndSend(log.conversationId)
+                          }
+                        >
+                          {sending.has(log.conversationId)
+                            ? "..."
+                            : "Approve & Send"}
+                        </Button>
+                      )}
+                      <Link href={`/dashboard/${log.conversationId}`}>
+                        <Button variant="outline" size="sm">
+                          View
+                        </Button>
+                      </Link>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -125,6 +207,30 @@ export function ConversationTable({ logs }: ConversationTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      {showPagination && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            {page > 1 && (
+              <Link href={buildPageUrl(page - 1)}>
+                <Button variant="outline" size="sm">
+                  Previous
+                </Button>
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link href={buildPageUrl(page + 1)}>
+                <Button variant="outline" size="sm">
+                  Next
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

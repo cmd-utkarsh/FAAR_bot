@@ -1,5 +1,5 @@
 import { frontClient, extractReplyTo } from "./front";
-import { selectTemplate } from "./deepseek";
+import { selectTemplate } from "./llm";
 import { getTemplates, resolveTemplateVariables } from "./templates";
 import { db } from "./db";
 import { RateLimiter } from "./rate-limiter";
@@ -138,6 +138,13 @@ export async function processConversation(
           })
         );
         statusIdApplied = waitingStatusId;
+      } else {
+        await withRateLimit(() =>
+          frontClient.updateConversationStatus(conversationId, {
+            status: "archived",
+          })
+        );
+        statusIdApplied = "archived";
       }
     }
   }

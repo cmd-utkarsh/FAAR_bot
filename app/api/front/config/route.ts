@@ -1,27 +1,73 @@
 import { NextResponse } from "next/server";
-import { frontClient } from "@/lib/front";
+
+const BASE_URL = "https://api2.frontapp.com";
+
+function headers() {
+  return {
+    Authorization: `Bearer ${process.env.FRONT_API_TOKEN}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+}
 
 export async function GET() {
   try {
-    const [statusesResult, teammatesResult, templatesResult] =
-      await Promise.allSettled([
-        frontClient.getCompanyStatuses(),
-        frontClient.getTeammates(),
-        frontClient.listMessageTemplates(),
-      ]);
+    const [statusesRes, teammatesRes, templatesRes] = await Promise.allSettled([
+      fetch(`${BASE_URL}/company/statuses`, { headers: headers() }),
+      fetch(`${BASE_URL}/teammates`, { headers: headers() }),
+      fetch(`${BASE_URL}/message_templates`, { headers: headers() }),
+    ]);
 
-    const statuses =
-      statusesResult.status === "fulfilled"
-        ? statusesResult.value.data._results
-        : [];
+    const frontOk = templatesRes.status === "fulfilled" && templatesRes.value.ok;
 
-    const teammates =
-      teammatesResult.status === "fulfilled"
-        ? teammatesResult.value.data._results
-        : [];
+    let ticketingEnabled = false;
+    let statuses: Array<{
+      id: string;
+      name: string;
+      category: string;
+      isWaiting: boolean;
+    }> = [];
 
-    const frontOk = templatesResult.status === "fulfilled";
-    const ticketingEnabled = statuses.length > 0;
+    if (statusesRes.status === "fulfilled") {
+      const res = statusesRes.value;
+      if (res.ok) {
+        ticketingEnabled = true;
+        const data = await res.json();
+        statuses = (data._results ?? []).map(
+          (s: { id: string; name: string; category: string }) => ({
+            id: s.id,
+            name: s.name,
+            category: s.category,
+            isWaiting: s.category === "waiting",
+          })
+        );
+      }
+    }
+
+    let teammates: Array<{
+      id: string;
+      email: string;
+      name: string;
+      isAvailable: boolean;
+    }> = [];
+
+    if (teammatesRes.status === "fulfilled" && teammatesRes.value.ok) {
+      const data = await teammatesRes.value.json();
+      teammates = (data._results ?? []).map(
+        (t: {
+          id: string;
+          email: string;
+          first_name: string;
+          last_name: string;
+          is_available: boolean;
+        }) => ({
+          id: t.id,
+          email: t.email,
+          name: `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim(),
+          isAvailable: t.is_available,
+        })
+      );
+    }
 
     const currentWaitingStatusId = process.env.FRONT_WAITING_STATUS_ID ?? "";
     const currentAuthorTeammateId = process.env.FRONT_AUTHOR_TEAMMATE_ID ?? "";
@@ -29,18 +75,8 @@ export async function GET() {
     return NextResponse.json({
       frontConnected: frontOk,
       ticketingEnabled,
-      statuses: statuses.map((s) => ({
-        id: s.id,
-        name: s.name,
-        category: s.category,
-        isWaiting: s.category === "waiting",
-      })),
-      teammates: teammates.map((t) => ({
-        id: t.id,
-        email: t.email,
-        name: `${t.first_name} ${t.last_name}`.trim(),
-        isAvailable: t.is_available,
-      })),
+      statuses,
+      teammates,
       currentWaitingStatusId,
       currentAuthorTeammateId,
     });

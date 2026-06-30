@@ -86,6 +86,11 @@ export async function POST(request: Request) {
         status_id: waitingStatusId,
       });
       statusIdApplied = waitingStatusId;
+    } else {
+      await frontClient.updateConversationStatus(conversationId, {
+        status: "archived",
+      });
+      statusIdApplied = "archived";
     }
 
     await db.processLog.update({
