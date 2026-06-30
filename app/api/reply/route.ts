@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { frontClient } from "@/lib/front";
+import { frontClient, extractReplyTo } from "@/lib/front";
 import { resolveTemplateVariables } from "@/lib/templates";
 import { db } from "@/lib/db";
 
@@ -53,11 +53,31 @@ export async function POST(request: Request) {
       senderName: lastInbound.author?.name,
     });
 
-    const { data: sendResult } = await frontClient.sendReply(conversationId, {
+    const replyTo = extractReplyTo(lastInbound, conversation);
+
+    const authorId = process.env.FRONT_AUTHOR_TEAMMATE_ID;
+    const sendPayload = {
       body,
-      author_id: process.env.FRONT_AUTHOR_TEAMMATE_ID,
+      to: replyTo,
+      author_id: authorId || undefined,
       options: { archive: false },
-    });
+    };
+
+    let sendResult;
+    try {
+      sendResult = (
+        await frontClient.sendReply(conversationId, sendPayload)
+      ).data;
+    } catch (e) {
+      if (authorId && (e as Error).message.includes("403")) {
+        const { author_id: _, ...fallbackPayload } = sendPayload;
+        sendResult = (
+          await frontClient.sendReply(conversationId, fallbackPayload)
+        ).data;
+      } else {
+        throw e;
+      }
+    }
 
     let statusIdApplied: string | undefined;
     const waitingStatusId = process.env.FRONT_WAITING_STATUS_ID;

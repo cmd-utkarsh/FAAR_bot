@@ -206,3 +206,17 @@ export const frontClient = {
     >(res);
   },
 };
+
+export function extractReplyTo(
+  message: FrontMessage,
+  conversation: FrontConversation
+): string[] {
+  const fromRecipient = message.recipients?.find((r) => r.role === "from");
+  if (fromRecipient?.handle) return [fromRecipient.handle];
+
+  if (message.author?.email) return [message.author.email];
+
+  if (conversation.recipient?.handle) return [conversation.recipient.handle];
+
+  return [];
+}

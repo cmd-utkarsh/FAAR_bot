@@ -1,4 +1,4 @@
-import { frontClient } from "./front";
+import { frontClient, extractReplyTo } from "./front";
 import { selectTemplate } from "./deepseek";
 import { getTemplates, resolveTemplateVariables } from "./templates";
 import { db } from "./db";
@@ -102,13 +102,31 @@ export async function processConversation(
         senderName: lastInbound.author?.name,
       });
 
-      const sendResult = await withRateLimit(() =>
-        frontClient.sendReply(conversationId, {
-          body,
-          author_id: process.env.FRONT_AUTHOR_TEAMMATE_ID,
-          options: { archive: false },
-        })
-      );
+      const replyTo = extractReplyTo(lastInbound, conversation);
+
+      let sendResult;
+      const authorId = process.env.FRONT_AUTHOR_TEAMMATE_ID;
+      const sendPayload = {
+        body,
+        to: replyTo,
+        author_id: authorId || undefined,
+        options: { archive: false },
+      };
+
+      try {
+        sendResult = await withRateLimit(() =>
+          frontClient.sendReply(conversationId, sendPayload)
+        );
+      } catch (e) {
+        if (authorId && (e as Error).message.includes("403")) {
+          const { author_id: _, ...fallbackPayload } = sendPayload;
+          sendResult = await withRateLimit(() =>
+            frontClient.sendReply(conversationId, fallbackPayload)
+          );
+        } else {
+          throw e;
+        }
+      }
 
       messageUid = sendResult.message_uid;
 

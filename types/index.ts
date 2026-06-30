@@ -18,8 +18,9 @@ export interface FrontMessage {
   body: string;
   text: string;
   created_at: number;
-  author?: { name: string; email: string };
-  recipients?: Array<{ name: string; handle: string }>;
+  author?: { name: string; email: string } | null;
+  sender?: { name: string; handle: string } | null;
+  recipients?: Array<{ name: string; handle: string; role: "from" | "to" | "cc" | "bcc" }>;
 }
 
 export interface FrontTemplate {
@@ -34,6 +35,10 @@ export interface FrontTemplate {
 
 export interface FrontSendReplyBody {
   body: string;
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
   author_id?: string;
   channel_id?: string;
   options: {
