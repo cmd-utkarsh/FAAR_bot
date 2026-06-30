@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: faar_bot_db
+    environment:
+      POSTGRES_USER: faar_bot
+      POSTGRES_PASSWORD: faar_bot
+      POSTGRES_DB: faar_bot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

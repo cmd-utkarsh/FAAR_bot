@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ProcessLog {
+  id               String    @id @default(cuid())
+  conversationId   String    @unique
+  subjectLine      String?
+  emailSnippet     String    @db.Text
+  selectedTemplate String
+  templateId       String
+  confidence       Int
+  reasoning        String    @db.Text
+  messageUid       String?
+  statusIdApplied  String?
+  status           LogStatus @default(PENDING)
+  replySentAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+enum LogStatus {
+  AUTO_SENT
+  MANUAL_REVIEW
+  MANUALLY_SENT
+  SKIPPED
+  ERROR
+  PENDING
+}
