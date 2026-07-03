@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { StatsBar } from "@/components/dashboard/StatsBar";
 import { ConversationTable } from "@/components/dashboard/ConversationTable";
 import { LiveCheckToggle } from "@/components/dashboard/LiveCheckToggle";
+import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { db } from "@/lib/db";
 import type { LogStatus } from "@/types";
 
@@ -55,20 +56,23 @@ export default async function DashboardPage({
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 p-6 space-y-6">
-        <StatsBar
-          total={totalProcessed}
-          autoSent={autoSent}
-          pendingReview={pendingReview}
-          errors={errors}
-        />
+        <AutoRefresh intervalMs={15_000}>
+          <StatsBar
+            total={totalProcessed}
+            autoSent={autoSent}
+            pendingReview={pendingReview}
+            errors={errors}
+          />
 
-        <LiveCheckToggle pollIntervalMs={POLL_INTERVAL} />
+          <LiveCheckToggle pollIntervalMs={POLL_INTERVAL} />
 
-        <ConversationTable
-          logs={serializedLogs}
-          page={page}
-          totalPages={totalPages}
-        />
+          <ConversationTable
+            key={page}
+            logs={serializedLogs}
+            page={page}
+            totalPages={totalPages}
+          />
+        </AutoRefresh>
       </main>
     </div>
   );

@@ -64,6 +64,22 @@ export async function processConversation(
     frontClient.getConversation(conversationId)
   );
 
+  const AUTO_REPLY_PATTERNS = [/^Automatic reply:/i];
+
+  if (AUTO_REPLY_PATTERNS.some((p) => p.test(conversation.subject ?? ""))) {
+    const skipped: ProcessResult = {
+      conversationId,
+      emailSnippet: "",
+      selectedTemplate: "",
+      templateId: "",
+      confidence: 0,
+      reasoning: "Auto-reply filtered out",
+      status: "SKIPPED",
+    };
+    await logResult(skipped);
+    return skipped;
+  }
+
   const templates = await getTemplates();
 
   let deepSeekResult;
@@ -213,5 +229,28 @@ export async function processConversationsBatch(
     const result = await processConversation(id, dryRun);
     results.push(result);
   }
+  return results;
+}
+
+export async function processConversationsBatchParallel(
+  conversationIds: string[],
+  dryRun = false,
+  concurrency = 3
+): Promise<ProcessResult[]> {
+  const results: ProcessResult[] = [];
+  const queue = [...conversationIds];
+
+  async function worker(): Promise<void> {
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (!id) break;
+      const result = await processConversation(id, dryRun);
+      results.push(result);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, () => worker());
+  await Promise.all(workers);
+
   return results;
 }

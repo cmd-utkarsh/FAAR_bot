@@ -23,8 +23,10 @@ export async function GET(request: Request) {
 
     const { data } = await frontClient.listConversations(liveCheckParams);
 
+    const AUTO_REPLY_PATTERNS = [/^Automatic reply:/i];
+
     const newConversations = data._results.filter(
-      (c) => !existingIds.has(c.id)
+      (c) => !existingIds.has(c.id) && !AUTO_REPLY_PATTERNS.some((p) => p.test(c.subject ?? ""))
     );
 
     let sent = 0;

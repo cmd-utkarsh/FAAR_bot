@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -49,8 +49,6 @@ export function ConversationTable({
   showPagination = true,
 }: ConversationTableProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [logs, setLogs] = useState(initialLogs);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sending, setSending] = useState<Set<string>>(new Set());
@@ -64,15 +62,7 @@ export function ConversationTable({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conversationId }),
         });
-        if (res.ok) {
-          setLogs((prev) =>
-            prev.map((l) =>
-              l.conversationId === conversationId
-                ? { ...l, status: "MANUALLY_SENT" as LogStatus }
-                : l
-            )
-          );
-        } else {
+        if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           alert(`Failed: ${err.error ?? "Unknown error"}`);
         }
@@ -90,7 +80,7 @@ export function ConversationTable({
     [router]
   );
 
-  const filtered = logs.filter((log) => {
+  const filtered = initialLogs.filter((log) => {
     const matchesSearch =
       search === "" ||
       (log.subjectLine ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -103,16 +93,7 @@ export function ConversationTable({
   const canApprove = (status: LogStatus) =>
     status === "MANUAL_REVIEW" || status === "ERROR";
 
-  const buildPageUrl = (p: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (p <= 1) {
-      params.delete("page");
-    } else {
-      params.set("page", String(p));
-    }
-    const qs = params.toString();
-    return `/dashboard${qs ? `?${qs}` : ""}`;
-  };
+  const buildPageUrl = (p: number) => `/dashboard?page=${p}`;
 
   return (
     <div className="space-y-4">

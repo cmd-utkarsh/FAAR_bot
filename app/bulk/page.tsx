@@ -31,6 +31,8 @@ function BulkPageContent() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [sweepResult, setSweepResult] = useState<string | null>(null);
+  const [sweepCompleted, setSweepCompleted] = useState(false);
+  const [sweepCompletedAt, setSweepCompletedAt] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -55,6 +57,8 @@ function BulkPageContent() {
   const handleSweep = async () => {
     setLoading(true);
     setSweepResult(null);
+    setSweepCompleted(false);
+    setSweepCompletedAt(null);
     try {
       const res = await fetch("/api/bulk/sweep", {
         method: "POST",
@@ -68,10 +72,14 @@ function BulkPageContent() {
       setSweepResult(
         `Fetched ${data.fetched}, processed ${data.processed}. ${data.errors} errors. Dry run: ${data.dryRun}`
       );
+      setSweepCompleted(true);
+      setSweepCompletedAt(new Date().toLocaleTimeString());
       setPage(1);
       pollLogs(1);
     } catch (e) {
       setSweepResult(`Error: ${(e as Error).message}`);
+      setSweepCompleted(true);
+      setSweepCompletedAt(new Date().toLocaleTimeString());
     } finally {
       setLoading(false);
     }
@@ -144,8 +152,35 @@ function BulkPageContent() {
                 {loading ? "Sweeping..." : "Start Sweep"}
               </Button>
             </div>
-            {sweepResult && (
-              <p className="text-sm text-muted-foreground">{sweepResult}</p>
+            {sweepCompleted && sweepResult && (
+              <Card className={sweepResult.startsWith("Error") ? "border-red-500 bg-red-50" : "border-green-500 bg-green-50"}>
+                <CardContent className="py-3 flex items-center gap-3">
+                  <span className="text-lg">
+                    {sweepResult.startsWith("Error") ? "✕" : "✓"}
+                  </span>
+                  <div>
+                    <p className="font-medium text-sm">
+                      {sweepResult.startsWith("Error") ? "Sweep Failed" : "Sweep Complete"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {sweepResult} — {sweepCompletedAt}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {loading && (
+              <Card className="border-blue-500 bg-blue-50">
+                <CardContent className="py-3 flex items-center gap-3">
+                  <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <div>
+                    <p className="font-medium text-sm">Sweep Running...</p>
+                    <p className="text-sm text-muted-foreground">
+                      Fetching and analyzing conversations. This may take a while.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </CardContent>
         </Card>

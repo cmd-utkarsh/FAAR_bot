@@ -55,7 +55,12 @@ export const frontClient = {
     rateLimit: RateLimitState;
   }> {
     const url = pageUrl
-      ? new URL(pageUrl)
+      ? (() => {
+          if (pageUrl.startsWith("http://") || pageUrl.startsWith("https://")) {
+            return new URL(pageUrl);
+          }
+          return new URL(pageUrl, BASE_URL);
+        })()
       : (() => {
           const u = new URL(`${BASE_URL}/conversations`);
           if (params instanceof URLSearchParams) {
